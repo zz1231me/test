@@ -1,0 +1,9 @@
+@import url('https://cdn.jsdelivr.net/gh/webfontworld/naver/NanumGothic.css'); /* ✅ 가장 위에 */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'NanumGothic', sans-serif;
+}
