@@ -1,6 +1,6 @@
 // src/models/Post.ts
 import { DataTypes, Model } from 'sequelize'
-import sequelize from '../config/database'
+import { sequelize } from '../config/sequelize'
 
 export class Post extends Model {
   public id!: number

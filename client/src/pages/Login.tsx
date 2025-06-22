@@ -1,41 +1,41 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../store/auth'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../store/auth';
 
 function Login() {
-  const { login } = useAuth() // ✅ Zustand에서 login 함수 가져오기
+  const { login } = useAuth();
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const navigate = useNavigate()
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError('');
 
     try {
       const res = await fetch('http://localhost:4000/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
-      })
+        body: JSON.stringify({ username, password }), // ✅ username 사용
+      });
 
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.message)
+        const err = await res.json();
+        throw new Error(err.message);
       }
 
-      const data = await res.json()
-      localStorage.setItem('token', data.token)
-      login(data.token, data.user.email, data.user.role) // ✅ Zustand에 저장
-      navigate('/dashboard')
+      const data = await res.json();
+      localStorage.setItem('token', data.token);
+      login(data.token, data.user.username, data.user.role); // ✅ user.username
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -43,10 +43,10 @@ function Login() {
         <h2 className="text-2xl font-bold mb-4">로그인</h2>
         {error && <p className="text-red-500 mb-2">{error}</p>}
         <input
-          type="email"
-          placeholder="이메일"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="아이디 (username)"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           className="w-full mb-3 p-2 border rounded"
           required
         />
@@ -66,7 +66,7 @@ function Login() {
         </button>
       </form>
     </div>
-  )
+  );
 }
 
-export default Login
+export default Login;

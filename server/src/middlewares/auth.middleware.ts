@@ -1,34 +1,35 @@
 // src/middlewares/auth.middleware.ts
-import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
+import { Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { AuthRequest } from '../types/auth-request';
 
 export const authenticateJWT = (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): void => {
-  const authHeader = req.headers.authorization
+  const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ message: '인증 헤더 없음' })
-    return
+    res.status(401).json({ message: '인증 헤더 없음' });
+    return;
   }
 
-  const token = authHeader.split(' ')[1]
+  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
-      email: string
-      role: 'admin' | 'group1' | 'group2'
-    }
+      id: string;
+      role: 'admin' | 'group1' | 'group2';
+    };
 
     req.user = {
-      email: decoded.email,
-      role: decoded.role
-    }
+      id: decoded.id,
+      role: decoded.role,
+    };
 
-    next()
+    next();
   } catch (err) {
-    res.status(401).json({ message: '유효하지 않은 토큰' })
+    res.status(401).json({ message: '유효하지 않은 토큰' });
   }
-}
+};
