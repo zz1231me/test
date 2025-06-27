@@ -1,50 +1,74 @@
-// src/models/Post.ts
-import { DataTypes, Model } from 'sequelize'
-import { sequelize } from '../config/sequelize'
+import {
+  DataTypes,
+  Model,
+  InferAttributes,
+  InferCreationAttributes,
+  CreationOptional,
+  ForeignKey,
+} from 'sequelize';
+import { sequelize } from '../config/sequelize';
+import { User } from './User';
+import type { User as UserType } from './User';
+import { generateRandomId } from '../utils/generateId';
 
-export class Post extends Model {
-  public id!: number
-  public title!: string
-  public content!: string
-  public boardType!: string
-  public authorEmail!: string
-  public role!: string
-  public readonly createdAt!: Date
+// ✅ PostInstance 타입 정의
+export interface PostInstance
+  extends Model<InferAttributes<PostInstance>, InferCreationAttributes<PostInstance>> {
+  id: CreationOptional<string>;
+  title: string;
+  content: string;
+  author: string;
+  attachment?: string | null; // ✅ null 허용으로 수정
+  boardType: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+
+  UserId: ForeignKey<string>;
+  User?: UserType;
 }
 
-Post.init(
+// ✅ Post 모델 정의
+export const Post = sequelize.define<PostInstance>(
+  'Post',
   {
     id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      autoIncrement: true,
-      primaryKey: true
+      type: DataTypes.STRING(8),
+      primaryKey: true,
+      allowNull: false,
+      defaultValue: () => generateRandomId(8),
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     content: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
+    },
+    author: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    attachment: {
+      type: DataTypes.STRING,
+      allowNull: true, // ✅ DB에서도 null 허용
     },
     boardType: {
-      type: DataTypes.ENUM('notice', 'onboarding', 'secui-only', 'free'),
-      allowNull: false
-    },
-    authorEmail: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      defaultValue: 'general',
     },
-    role: {
-      type: DataTypes.ENUM('admin', 'group1', 'group2'),
-      allowNull: false
-    }
+    UserId: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
   },
   {
-    sequelize,
-    modelName: 'Post',
-    tableName: 'posts',
     timestamps: true,
-    updatedAt: false
+    tableName: 'Posts',
   }
-)
+);
+
+// ✅ 관계 정의
+User.hasMany(Post, { foreignKey: 'UserId', onDelete: 'CASCADE' });
+Post.belongsTo(User, { foreignKey: 'UserId', onDelete: 'CASCADE' });

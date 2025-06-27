@@ -1,9 +1,10 @@
-@import url('https://cdn.jsdelivr.net/gh/webfontworld/naver/NanumGothic.css');
+@import url('https://fonts.googleapis.com/earlyaccess/nanumgothic.css');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  font-family: 'NanumGothic', sans-serif;
+  font-family: 'Nanum Gothic';
+  background-color: #FAFAFA;
 }
