@@ -19,9 +19,20 @@ export interface RoleInstance
   updatedAt?: Date;
 }
 
-// ✅ Role 모델 정의
-export const Role = sequelize.define<RoleInstance>(
-  'Role',
+// ✅ Role 클래스 정의 (다른 모델들과 통일)
+export class Role extends Model<InferAttributes<RoleInstance>, InferCreationAttributes<RoleInstance>> 
+  implements RoleInstance {
+  
+  public id!: string;
+  public name!: string;
+  public description?: string;
+  public isActive!: boolean;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+// 모델 초기화
+Role.init(
   {
     id: {
       type: DataTypes.STRING(50),
@@ -41,10 +52,21 @@ export const Role = sequelize.define<RoleInstance>(
       allowNull: false,
       defaultValue: true,
     },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
   },
   {
+    sequelize,
     modelName: 'Role',
     tableName: 'roles',
     timestamps: true,
   }
 );
+
+export default Role;

@@ -25,7 +25,7 @@ import { Comment } from './models/Comment';
 import Board from './models/Board';
 import BoardAccess from './models/BoardAccess';
 import Event from './models/Event';
-import EventPermission from './models/EventPermission'; // 🆕 EventPermission 추가
+import EventPermission from './models/EventPermission';
 
 // ✅ 데이터 마이그레이션 함수
 import { runMigrationIfNeeded } from './scripts/migrate-data';
@@ -33,20 +33,20 @@ import { runMigrationIfNeeded } from './scripts/migrate-data';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = Number(process.env.PORT) || 4000; // ✅ 4000포트로 변경 (nginx와 분리)
 
 // ✅ 모델 관계 설정 함수
 const setupModelAssociations = () => {
   console.log('🔗 모델 관계 설정 시작...');
 
-  // 1️⃣ User ↔ Role 관계 (수정됨!)
+  // 1️⃣ User ↔ Role 관계
   User.belongsTo(Role, {
-    foreignKey: 'roleId',  // ⚠️ 'role'이 아닌 'roleId'로 수정
+    foreignKey: 'roleId',
     targetKey: 'id',
-    as: 'roleInfo',        // ⚠️ 'role'이 아닌 'roleInfo'로 수정 (auth.middleware.ts와 일치)
+    as: 'roleInfo',
   });
   Role.hasMany(User, {
-    foreignKey: 'roleId',  // ⚠️ 'role'이 아닌 'roleId'로 수정
+    foreignKey: 'roleId',
     sourceKey: 'id',
     as: 'users',
   });
@@ -145,7 +145,7 @@ const setupModelAssociations = () => {
     onDelete: 'CASCADE'
   });
 
-  // 🆕 9️⃣ Role ↔ EventPermission 관계
+  // 9️⃣ Role ↔ EventPermission 관계
   Role.hasOne(EventPermission, {
     foreignKey: 'roleId',
     as: 'eventPermission'
@@ -160,23 +160,19 @@ const setupModelAssociations = () => {
 
 // ✅ 미들웨어
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost',
+  origin: [
+    'http://localhost',
+    'http://localhost:80',
+    'http://127.0.0.1',
+    'http://127.0.0.1:80'
+  ], // ✅ undefined 제거
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// ✅ 헬스체크
-app.get('/', (req, res) => {
-  res.json({ 
-    message: '✅ 서버 실행 중',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// ✅ API 라우트
+// ✅ API 라우트 (모두 /api 경로 유지)
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/admin', adminRoutes);
@@ -185,7 +181,7 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/boards', boardRoutes);
 app.use('/api/comments', commentRoutes);
 
-// ✅ 정적 파일 제공
+// ✅ 업로드 파일 정적 서빙 (nginx가 프록시할 경로)
 app.use(
   '/uploads/images',
   express.static(path.resolve(__dirname, '../uploads/images'))
@@ -195,8 +191,18 @@ app.use(
   express.static(path.resolve(__dirname, '../uploads/files'))
 );
 
-// ✅ 디버깅 경로
-app.get('/__debug-upload-path', (req, res) => {
+// ✅ API 헬스체크
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    message: '✅ API 서버 실행 중 (nginx 연동)',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT
+  });
+});
+
+// ✅ 디버깅 엔드포인트들
+app.get('/api/__debug-upload-path', (req, res) => {
   const imagePath = path.resolve(__dirname, '../uploads/images');
   const filePath = path.resolve(__dirname, '../uploads/files');
   res.json({
@@ -211,8 +217,7 @@ app.get('/__debug-upload-path', (req, res) => {
   });
 });
 
-// ✅ 모델 관계 디버깅 엔드포인트
-app.get('/__debug-models', (req, res) => {
+app.get('/api/__debug-models', (req, res) => {
   res.json({
     models: {
       User: !!User,
@@ -222,7 +227,7 @@ app.get('/__debug-models', (req, res) => {
       Board: !!Board,
       BoardAccess: !!BoardAccess,
       Event: !!Event,
-      EventPermission: !!EventPermission, // 🆕 EventPermission 추가
+      EventPermission: !!EventPermission,
     },
     associations: {
       User: Object.keys(User.associations || {}),
@@ -232,15 +237,21 @@ app.get('/__debug-models', (req, res) => {
       Board: Object.keys(Board.associations || {}),
       BoardAccess: Object.keys(BoardAccess.associations || {}),
       Event: Object.keys(Event.associations || {}),
-      EventPermission: Object.keys(EventPermission.associations || {}), // 🆕 EventPermission 관계 추가
+      EventPermission: Object.keys(EventPermission.associations || {}),
     }
   });
 });
 
+// ❌ 클라이언트 정적 파일 서빙 제거 (nginx가 처리)
+// app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+// ❌ SPA catch-all 핸들러 제거 (nginx가 처리)
+// app.get('*', (req, res) => { ... });
+
 // ✅ DB 연결 및 서버 시작
 const startServer = async () => {
   try {
-    console.log('🔄 서버 초기화 시작...');
+    console.log('🔄 API 서버 초기화 시작...');
 
     // 1. 데이터베이스 연결 테스트
     console.log('🗄️ 데이터베이스 연결 확인 중...');
@@ -254,7 +265,7 @@ const startServer = async () => {
     console.log('🔄 테이블 동기화 시작...');
     await sequelize.sync({ 
       alter: process.env.NODE_ENV === 'development',
-      force: false // ⚠️ 절대 true로 설정하지 마세요 (데이터 손실 위험)
+      force: false
     });
     console.log('✅ 테이블 동기화 완료');
 
@@ -263,24 +274,33 @@ const startServer = async () => {
     await runMigrationIfNeeded();
     console.log('✅ 데이터 마이그레이션 완료');
 
-    // 5. 서버 시작
-    app.listen(PORT, () => {
-      console.log(`🚀 서버가 http://localhost:${PORT}에서 실행 중`);
-      console.log('📋 주요 API 엔드포인트:');
-      console.log('   🔐 인증: POST /api/auth/login');
-      console.log('   📝 게시판: GET /api/boards');
-      console.log('   📄 게시글: GET /api/posts');
-      console.log('   ⚙️  관리자: GET /api/admin/users');
-      console.log('   📅 이벤트: GET /api/events');
-      console.log('   📁 업로드: POST /api/uploads');
-      console.log('   💬 댓글: GET /api/comments');
+    // 5. API 서버 시작
+    app.listen(PORT, '127.0.0.1', () => {
+      console.log(`🚀 API 서버가 http://127.0.0.1:${PORT}에서 실행 중`);
       console.log('');
-      console.log('🔧 디버깅 엔드포인트:');
-      console.log('   📊 모델 상태: GET /__debug-models');
-      console.log('   📁 업로드 경로: GET /__debug-upload-path');
+      console.log('🔗 nginx 연동 정보:');
+      console.log('   📱 클라이언트: nginx(80) → client/dist');
+      console.log('   🔌 API 프록시: nginx(80)/api → Express(4000)/api');
+      console.log('   📁 업로드 프록시: nginx(80)/uploads → Express(4000)/uploads');
+      console.log('');
+      console.log('📋 API 엔드포인트 (4000포트):');
+      console.log(`   ❤️  헬스체크: GET http://127.0.0.1:${PORT}/api/health`);
+      console.log(`   🔐 인증: POST http://127.0.0.1:${PORT}/api/auth/login`);
+      console.log(`   📝 게시판: GET http://127.0.0.1:${PORT}/api/boards`);
+      console.log(`   📄 게시글: GET http://127.0.0.1:${PORT}/api/posts`);
+      console.log(`   ⚙️  관리자: GET http://127.0.0.1:${PORT}/api/admin/users`);
+      console.log(`   📅 이벤트: GET http://127.0.0.1:${PORT}/api/events`);
+      console.log(`   📁 업로드: POST http://127.0.0.1:${PORT}/api/uploads`);
+      console.log(`   💬 댓글: GET http://127.0.0.1:${PORT}/api/comments`);
+      console.log('');
+      console.log('🌐 외부 접속 (nginx 통해):');
+      console.log('   📱 클라이언트: http://localhost (nginx)');
+      console.log('   🔌 API: http://localhost/api/* (nginx → Express)');
+      console.log('');
+      console.log('⚠️  nginx가 실행되어야 외부 접속 가능합니다!');
     });
   } catch (error) {
-    console.error('❌ 서버 시작 실패:', error);
+    console.error('❌ API 서버 시작 실패:', error);
     if (error instanceof Error) {
       console.error('오류 이름:', error.name);
       console.error('오류 메시지:', error.message);

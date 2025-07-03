@@ -3,10 +3,10 @@
 
 import Board from '../models/Board';
 import { Role } from '../models/Role';
-import { User } from '../models/User'; // ✅ User 모델 import 추가
+import { User } from '../models/User';
 import BoardAccess from '../models/BoardAccess';
 import EventPermission from '../models/EventPermission';
-import { hashPassword } from '../utils/hash'; // ✅ 해시 함수 import 추가
+import { hashPassword } from '../utils/hash';
 
 // 마이그레이션 실행 여부 체크용
 let migrationCompleted = false;
@@ -52,7 +52,7 @@ export const migrateData = async () => {
       }
     }
 
-    // 🆕 2. Admin 계정 생성 (admin 권한이 없을 경우에만)
+    // 2. Admin 계정 생성 (admin 권한이 없을 경우에만)
     console.log('👑 Admin 계정 확인 중...');
     const existingAdmin = await User.findOne({
       where: { roleId: 'admin' }
@@ -61,7 +61,7 @@ export const migrateData = async () => {
     if (!existingAdmin) {
       const adminUser = await User.create({
         id: 'admin',
-        password: hashPassword('1234'), // 기본 비밀번호: 1234
+        password: hashPassword('1234'),
         name: '관리자',
         roleId: 'admin'
       });
@@ -74,12 +74,13 @@ export const migrateData = async () => {
       console.log('   ✅ Admin 계정이 이미 존재함');
     }
 
-    // 3. 기본 게시판(Board) 데이터 생성
+    // 3. 기본 게시판(Board) 데이터 생성 - 🔧 admin 게시판 추가
     console.log('📝 기본 게시판 생성 중...');
     const defaultBoards = [
-      { id: 'general', name: '공통게시판', description: '공통 게시판', order: 1 },
       { id: 'notice', name: '공지사항', description: '공지사항 게시판', order: 0 },
+      { id: 'general', name: '공통게시판', description: '공통 게시판', order: 1 },
       { id: 'free', name: '자유게시판', description: '자유 게시판', order: 2 },
+      { id: 'admin', name: '관리자게시판', description: '관리자 전용 게시판', order: 10 }, // ✅ 추가
     ];
 
     for (const boardData of defaultBoards) {
@@ -95,18 +96,23 @@ export const migrateData = async () => {
       }
     }
 
-    // 4. 기본 게시판 권한 설정
+    // 4. 기본 게시판 권한 설정 - 🔧 free 게시판 권한 추가
     console.log('📝 기본 게시판 권한 설정 중...');
     const defaultBoardPermissions = [
+      // 공지사항: 관리자만 쓰기, 모든 그룹 읽기
+      { boardId: 'notice', roleId: 'admin', canRead: true, canWrite: true, canDelete: true },
+      { boardId: 'notice', roleId: 'group1', canRead: true, canWrite: false, canDelete: false },
+      { boardId: 'notice', roleId: 'group2', canRead: true, canWrite: false, canDelete: false },
+
       // 일반 게시판: 모든 그룹 읽기/쓰기 가능
       { boardId: 'general', roleId: 'admin', canRead: true, canWrite: true, canDelete: true },
       { boardId: 'general', roleId: 'group1', canRead: true, canWrite: true, canDelete: false },
       { boardId: 'general', roleId: 'group2', canRead: true, canWrite: true, canDelete: false },
 
-      // 공지사항: 관리자만 쓰기, 모든 그룹 읽기
-      { boardId: 'notice', roleId: 'admin', canRead: true, canWrite: true, canDelete: true },
-      { boardId: 'notice', roleId: 'group1', canRead: true, canWrite: false, canDelete: false },
-      { boardId: 'notice', roleId: 'group2', canRead: true, canWrite: false, canDelete: false },
+      // ✅ 자유게시판: 모든 그룹 읽기/쓰기 가능
+      { boardId: 'free', roleId: 'admin', canRead: true, canWrite: true, canDelete: true },
+      { boardId: 'free', roleId: 'group1', canRead: true, canWrite: true, canDelete: false },
+      { boardId: 'free', roleId: 'group2', canRead: true, canWrite: true, canDelete: false },
 
       // 관리자 게시판: 관리자만 접근
       { boardId: 'admin', roleId: 'admin', canRead: true, canWrite: true, canDelete: true },
@@ -134,24 +140,24 @@ export const migrateData = async () => {
         roleId: 'admin', 
         canCreate: true, 
         canRead: true, 
-        canUpdate: true,  // 다른 사람 이벤트도 수정 가능
-        canDelete: true   // 다른 사람 이벤트도 삭제 가능
+        canUpdate: true,
+        canDelete: true
       },
       // 그룹1: 생성/조회만 가능 (본인 이벤트만 수정/삭제)
       { 
         roleId: 'group1', 
         canCreate: true, 
         canRead: true, 
-        canUpdate: false, // 다른 사람 이벤트 수정 불가
-        canDelete: false  // 다른 사람 이벤트 삭제 불가
+        canUpdate: false,
+        canDelete: false
       },
       // 그룹2: 생성/조회만 가능 (본인 이벤트만 수정/삭제)
       { 
         roleId: 'group2', 
         canCreate: true, 
         canRead: true, 
-        canUpdate: false, // 다른 사람 이벤트 수정 불가
-        canDelete: false  // 다른 사람 이벤트 삭제 불가
+        canUpdate: false,
+        canDelete: false
       },
     ];
 
@@ -169,10 +175,11 @@ export const migrateData = async () => {
     migrationCompleted = true;
     console.log('✅ 초기 데이터 생성 완료!');
     console.log('');
-    console.log('📋 생성된 기본 권한:');
-    console.log('   👑 관리자 (admin): 모든 권한');
-    console.log('   👥 그룹1 (group1): 이벤트 생성/조회 + 본인 이벤트만 수정/삭제');
-    console.log('   👥 그룹2 (group2): 이벤트 생성/조회 + 본인 이벤트만 수정/삭제');
+    console.log('📋 생성된 기본 게시판:');
+    console.log('   📢 공지사항 (notice): 관리자만 작성 가능');
+    console.log('   📝 공통게시판 (general): 모든 그룹 읽기/쓰기 가능');
+    console.log('   💬 자유게시판 (free): 모든 그룹 읽기/쓰기 가능');
+    console.log('   🔒 관리자게시판 (admin): 관리자만 접근 가능');
     console.log('');
     console.log('🔐 기본 관리자 계정:');
     console.log('   🆔 아이디: admin');
@@ -188,7 +195,6 @@ export const migrateData = async () => {
 
 // 개발 환경에서만 실행하거나 환경변수로 제어
 export const runMigrationIfNeeded = async () => {
-  // 환경변수로 마이그레이션 스킵 가능
   if (process.env.SKIP_MIGRATION === 'true') {
     console.log('⏭️ SKIP_MIGRATION=true 설정으로 마이그레이션 스킵');
     return;
@@ -197,7 +203,7 @@ export const runMigrationIfNeeded = async () => {
   const shouldRunMigration = 
     process.env.NODE_ENV === 'development' || 
     process.env.RUN_MIGRATION === 'true' ||
-    process.env.NODE_ENV !== 'production'; // 운영환경이 아니면 실행
+    process.env.NODE_ENV !== 'production';
 
   if (shouldRunMigration) {
     await migrateData();

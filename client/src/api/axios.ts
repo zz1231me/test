@@ -2,11 +2,11 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL}/api`,  // ✅ 절대경로 -> http://localhost:4000/api
+  baseURL: '/api',  // ✅ 절대경로에서 상대경로로 변경
 });
 
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token'); // ✅ sessionStorage에서 읽음
+  const token = sessionStorage.getItem('token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
