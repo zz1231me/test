@@ -7,19 +7,21 @@ import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-sy
 import '@toast-ui/editor-plugin-table-merged-cell/dist/toastui-editor-plugin-table-merged-cell.css';
 import 'prismjs/themes/prism.css';
 
-
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import BoardProtectedRoute from './components/BoardProtectedRoute'; // ✅ 새로 추가
+import RoleProtectedRoute from './components/RoleProtectedRoute';
 import Unauthorized from './pages/Unauthorized';
 import PostList from './pages/boards/PostList';
 import PostDetail from './pages/boards/PostDetail';
 import PostEditor from './pages/boards/PostEditor';
 import MyTUICalendar from './pages/components/MyTUICalendar';
 import AdminUserPage from './pages/AdminUserPage';
-import ChangePasswordPage from './pages/ChangePasswordPage'; // 새로 만든 컴포넌트
+import ChangePasswordPage from './pages/ChangePasswordPage';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -29,6 +31,7 @@ function App() {
         <Route path="/" element={<Login />} />
         {/* 권한 없음 안내 페이지 */}
         <Route path="/unauthorized" element={<Unauthorized />} />
+        
         {/* 보호된 경로: 대시보드 및 게시판 */}
         <Route
           path="/dashboard"
@@ -40,14 +43,58 @@ function App() {
         >
           {/* 주요 화면 라우팅 */}
           <Route path="calendar" element={<MyTUICalendar />} />
-          <Route path="admin" element={<AdminUserPage />} />
-          <Route path="change-password" element={<ChangePasswordPage />} /> {/* 수정됨 */}
-          {/* 게시글 관련 */}
-          <Route path="posts/:boardType/new" element={<PostEditor mode="create" />} />
-          <Route path="posts/:boardType/edit/:id" element={<PostEditor mode="edit" />} />
-          <Route path="posts/:boardType/:id" element={<PostDetail />} />
-          <Route path="posts/:boardType" element={<PostList />} />
+          
+          {/* ✅ 관리자 전용 라우트 */}
+          <Route 
+            path="admin" 
+            element={
+              <RoleProtectedRoute allowedRoles={['admin']}>
+                <AdminUserPage />
+              </RoleProtectedRoute>
+            } 
+          />
+          
+          <Route path="change-password" element={<ChangePasswordPage />} />
+          
+          {/* ✅ 게시글 관련 - 이제 권한 보호됨! */}
+          <Route 
+            path="posts/:boardType/new" 
+            element={
+              <BoardProtectedRoute action="write">
+                <PostEditor mode="create" />
+              </BoardProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="posts/:boardType/edit/:id" 
+            element={
+              <BoardProtectedRoute action="write">
+                <PostEditor mode="edit" />
+              </BoardProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="posts/:boardType/:id" 
+            element={
+              <BoardProtectedRoute action="read">
+                <PostDetail />
+              </BoardProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="posts/:boardType" 
+            element={
+              <BoardProtectedRoute action="read">
+                <PostList />
+              </BoardProtectedRoute>
+            } 
+          />
+          
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );

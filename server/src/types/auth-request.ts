@@ -5,6 +5,6 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     name: string;
-    role: 'admin' | 'group1' | 'group2';
+    role: string; // 🔧 문자열로 확장 (기존 유니언 타입 제거)
   };
 }

@@ -1,3 +1,4 @@
+// src/models/Post.ts
 import {
   DataTypes,
   Model,
@@ -5,11 +6,14 @@ import {
   InferCreationAttributes,
   CreationOptional,
   ForeignKey,
+  NonAttribute,
 } from 'sequelize';
 import { sequelize } from '../config/sequelize';
-import { User } from './User';
-import type { User as UserType } from './User';
 import { generateRandomId } from '../utils/generateId';
+
+// 타입 전용 import
+import type { UserInstance } from './User';
+import type { Board } from './Board';
 
 // ✅ PostInstance 타입 정의
 export interface PostInstance
@@ -18,18 +22,38 @@ export interface PostInstance
   title: string;
   content: string;
   author: string;
-  attachment?: string | null; // ✅ null 허용으로 수정
+  attachment?: string | null;
   boardType: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-
   UserId: ForeignKey<string>;
-  User?: UserType;
+  createdAt: CreationOptional<Date>;
+  updatedAt: CreationOptional<Date>;
+
+  // 관계 데이터
+  user?: NonAttribute<UserInstance>;
+  board?: NonAttribute<Board>;
 }
 
-// ✅ Post 모델 정의
-export const Post = sequelize.define<PostInstance>(
-  'Post',
+// ✅ Post 모델을 class 방식으로 통일
+export class Post extends Model<InferAttributes<PostInstance>, InferCreationAttributes<PostInstance>> 
+  implements PostInstance {
+  
+  public id!: CreationOptional<string>;
+  public title!: string;
+  public content!: string;
+  public author!: string;
+  public attachment?: string | null;
+  public boardType!: string;
+  public UserId!: ForeignKey<string>;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+
+  // 관계 데이터
+  public user?: NonAttribute<UserInstance>;
+  public board?: NonAttribute<Board>;
+}
+
+// 모델 초기화
+Post.init(
   {
     id: {
       type: DataTypes.STRING(8),
@@ -51,7 +75,7 @@ export const Post = sequelize.define<PostInstance>(
     },
     attachment: {
       type: DataTypes.STRING,
-      allowNull: true, // ✅ DB에서도 null 허용
+      allowNull: true,
     },
     boardType: {
       type: DataTypes.STRING,
@@ -62,13 +86,21 @@ export const Post = sequelize.define<PostInstance>(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
   },
   {
+    sequelize,
     timestamps: true,
     tableName: 'Posts',
+    modelName: 'Post',
   }
 );
 
-// ✅ 관계 정의
-User.hasMany(Post, { foreignKey: 'UserId', onDelete: 'CASCADE' });
-Post.belongsTo(User, { foreignKey: 'UserId', onDelete: 'CASCADE' });
+// 🚨 관계 정의 제거 - models/index.ts에서만!

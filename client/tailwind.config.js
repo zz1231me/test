@@ -9,7 +9,7 @@ module.exports = {
     extend: {
       fontFamily: {
         'sans': [
-          'Nanum Gothic'
+          'Noto Sans KR'
         ],
       }
     }

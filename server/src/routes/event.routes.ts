@@ -5,23 +5,34 @@ import {
   updateEvent,
   deleteEvent,
 } from '../controllers/event.controller';
-import { authenticate } from '../middlewares/auth.middleware'; // ✅ 이름 수정
-import { authorizeRoles } from '../middlewares/role.middleware';
+import { authenticate } from '../middlewares/auth.middleware';
+import { checkEventPermission } from '../middlewares/eventPermission.middleware';
 
 const router = express.Router();
 
-// ✅ 미들웨어를 명시적으로 캐스팅
-const authenticateJWT = authenticate as RequestHandler;
-const authRoles = (...roles: string[]) =>
-  authorizeRoles(...roles) as RequestHandler;
+// ✅ EventPermission 기반 권한 체크 사용
+router.post('/', 
+  authenticate as RequestHandler,
+  checkEventPermission('create') as RequestHandler,
+  createEvent as RequestHandler
+);
 
-const requireAuth = [authenticateJWT, authRoles('admin', 'group1', 'group2')];
-const requireAdmin = [authenticateJWT, authRoles('admin')];
+router.get('/', 
+  authenticate as RequestHandler,
+  checkEventPermission('read') as RequestHandler,
+  getEvents as RequestHandler
+);
 
-// ✅ 라우터 등록
-router.post('/', ...requireAuth, createEvent as RequestHandler);
-router.get('/', ...requireAuth, getEvents as RequestHandler);
-router.put('/:id', ...requireAdmin, updateEvent as RequestHandler);
-router.delete('/:id', ...requireAdmin, deleteEvent as RequestHandler);
+router.put('/:id', 
+  authenticate as RequestHandler,
+  checkEventPermission('update') as RequestHandler,
+  updateEvent as RequestHandler
+);
+
+router.delete('/:id', 
+  authenticate as RequestHandler,
+  checkEventPermission('delete') as RequestHandler,
+  deleteEvent as RequestHandler
+);
 
 export default router;

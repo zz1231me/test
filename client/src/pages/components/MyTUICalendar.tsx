@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Calendar from '@toast-ui/calendar';
 import '@toast-ui/calendar/dist/toastui-calendar.min.css';
+// ✅ 공식 문서: useFormPopup 사용 시 필수 CSS imports
 import 'tui-date-picker/dist/tui-date-picker.css';
 import 'tui-time-picker/dist/tui-time-picker.css';
 import { createEvent, getEvents, updateEvent, deleteEvent } from '../../api/events';
 
-// ✅ 타입 정의
+// ✅ 공식 API 문서 기반 정확한 타입 정의
 interface CalendarEvent {
   id: string;
   title: string;
@@ -36,19 +37,19 @@ interface ApiEventData {
   isReadOnly?: boolean;
 }
 
-export default function MonthlyCalendar() {
+function MonthlyCalendar() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const calendarRef = useRef<InstanceType<typeof Calendar> | null>(null);
+  const calendarRef = useRef<Calendar | null>(null);
   const eventsCache = useRef<Map<string, CalendarEvent[]>>(new Map());
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const styleElementRef = useRef<HTMLStyleElement | null>(null);
+  const isInitialized = useRef(false);
+  const currentViewDate = useRef(new Date());
   
   const [currentDate, setCurrentDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastNotification>({ type: 'info', message: '', visible: false });
-  const [containerHeight, setContainerHeight] = useState(800);
 
-  // ✅ 토스트 알림 시스템 (자동 닫기 타이머 정리 추가)
+  // ✅ 토스트 알림 시스템
   const showToast = useCallback((type: ToastNotification['type'], message: string) => {
     setToast({ type, message, visible: true });
     
@@ -56,65 +57,49 @@ export default function MonthlyCalendar() {
       setToast(prev => ({ ...prev, visible: false }));
     }, 3000);
 
-    // 컴포넌트 언마운트 시 타이머 정리를 위해 ref에 저장
     return () => clearTimeout(timer);
   }, []);
 
-  // ✅ 반응형 높이 계산 (디바운싱 추가)
-  useEffect(() => {
-    let resizeTimer: NodeJS.Timeout;
-    
-    const updateHeight = () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        const vh = window.innerHeight;
-        const headerHeight = 200;
-        const footerHeight = 180;
-        const availableHeight = vh - headerHeight - footerHeight;
-        setContainerHeight(Math.max(800, Math.min(1200, availableHeight)));
-      }, 100); // 리사이즈 디바운싱
-    };
-
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-    
-    return () => {
-      window.removeEventListener('resize', updateHeight);
-      clearTimeout(resizeTimer);
-    };
-  }, []);
-
-  // ✅ 캘린더 설정을 메모이제이션으로 최적화
+  // ✅ 공식 문서 기반 정확한 Calendar 옵션 (3주 뷰 포함)
   const calendarOptions = useMemo(() => ({
+    // 기본 뷰 설정
     defaultView: 'month',
     isReadOnly: false,
     usageStatistics: false,
     useFormPopup: true,
     useDetailPopup: true,
+    
+    // 타임존 설정 (공식 문서 기준)
+    timezone: {
+      zones: [
+        {
+          timezoneName: 'Asia/Seoul',
+          displayLabel: 'Seoul',
+          tooltip: 'Korea Standard Time',
+        },
+      ],
+    },
+    
+    // ✅ 월 뷰 설정 - 순수한 한 달만 표시
     month: {
       dayNames: ['일', '월', '화', '수', '목', '금', '토'],
       startDayOfWeek: 0,
-      isAlways6Weeks: true,
+      // ✅ 실제 한 달의 주 수만 표시 (4-6주 가변)
+      isAlways6Weeks: false,  // 6주 고정 해제
       narrowWeekend: false,
-      visibleEventCount: 999,
+      visibleEventCount: 4,   // ✅ 한 셀에 4개 이벤트까지 표시
     },
-    theme: {
-      month: {
-        dayExceptThisMonth: {
-          color: '#d1d5db',
-        },
-        holiday: {
-          color: '#ef4444',
-        },
-        weekend: {
-          backgroundColor: '#fef7f7',
-        },
-        gridCell: {
-          headerHeight: 34,
-          footerHeight: 4,
-        },
-      },
+    
+    // 주 뷰 설정 (공식 문서 기준)
+    week: {
+      dayNames: ['일', '월', '화', '수', '목', '금', '토'],
+      startDayOfWeek: 0,
+      narrowWeekend: false,
+      showNowIndicator: true,
+      showTimezoneCollapseButton: false,
     },
+    
+    // 캘린더 목록 (공식 예제 기준)
     calendars: [
       { 
         id: 'vacation', 
@@ -152,21 +137,15 @@ export default function MonthlyCalendar() {
         color: '#7c3aed',
       },
     ],
+    
+    // 템플릿 설정 (공식 문서 기준)
     template: {
-      time({ title }: { title: string }) {
-        return title || '(제목 없음)';
+      time(event: any) {
+        const { start, end, title } = event;
+        return `<div class="time-event">${title}</div>`;
       },
-      allday({ title }: { title: string }) {
-        return title || '(제목 없음)';
-      },
-      monthGridTitle({ title }: { title: string }) {
-        return title || '(제목 없음)';
-      },
-      popupDetailBody({ body }: { body?: string }) {
-        return body ?? '';
-      },
-      popupDetailLocation({ location }: { location?: string }) {
-        return location ? `📍 ${location}` : '';
+      allday(event: any) {
+        return `<div class="allday-event">${event.title}</div>`;
       },
     },
   }), []);
@@ -182,34 +161,44 @@ export default function MonthlyCalendar() {
     return new Date(dateInput);
   }, []);
 
-  // ✅ 이벤트 로드 (에러 처리 개선)
+  // ✅ 현재 뷰 날짜 관리 (공식 API에서 제공하지 않으므로 직접 관리)
+  const getCurrentDate = useCallback(() => {
+    return currentViewDate.current;
+  }, []);
+
+  // ✅ 안전한 이벤트 로드 (성능 최적화)
   const loadEvents = useCallback(async () => {
     const calendar = calendarRef.current;
-    if (!calendar || loading) return;
-
-    const baseDate = calendar.getDate().toDate();
-    const year = baseDate.getFullYear();
-    const month = baseDate.getMonth();
-    const cacheKey = getCacheKey(year, month);
-
-    // 캐시 확인
-    if (eventsCache.current.has(cacheKey)) {
-      const cachedEvents = eventsCache.current.get(cacheKey)!;
-      try {
-        calendar.clear();
-        calendar.createEvents(cachedEvents);
-        return;
-      } catch (error) {
-        console.warn('캐시된 이벤트 로드 실패, 새로 불러옵니다:', error);
-        eventsCache.current.delete(cacheKey);
-      }
-    }
+    if (!calendar || loading || !isInitialized.current) return;
 
     setLoading(true);
     
     try {
-      const start = new Date(year, month, 1);
-      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      const baseDate = getCurrentDate();
+      const year = baseDate.getFullYear();
+      const month = baseDate.getMonth();
+      const cacheKey = getCacheKey(year, month);
+
+      // 캐시 확인
+      if (eventsCache.current.has(cacheKey)) {
+        const cachedEvents = eventsCache.current.get(cacheKey)!;
+        try {
+          // 공식 API: clear() 후 createEvents() 사용
+          calendar.clear();
+          if (cachedEvents.length > 0) {
+            calendar.createEvents(cachedEvents);
+          }
+          showToast('success', `${cachedEvents.length}개의 일정을 불러왔습니다.`);
+          return;
+        } catch (error) {
+          console.warn('캐시된 이벤트 로드 실패:', error);
+          eventsCache.current.delete(cacheKey);
+        }
+      }
+
+      // 더 넓은 범위로 데이터 로드 (이전/다음 달 포함)
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month + 2, 0, 23, 59, 59, 999);
       
       const data: ApiEventData[] = await getEvents(start, end);
       
@@ -226,12 +215,25 @@ export default function MonthlyCalendar() {
         isReadOnly: e.isReadOnly ?? false,
       }));
       
-      // 캐시에 저장
       eventsCache.current.set(cacheKey, events);
       
-      // 캘린더에 적용
-      calendar.clear();
-      calendar.createEvents(events);
+      // 공식 API 사용
+      try {
+        calendar.clear();
+        if (events.length > 0) {
+          calendar.createEvents(events);
+        }
+      } catch (createError) {
+        console.warn('이벤트 생성 실패:', createError);
+        // 대안: 개별 생성 시도
+        events.forEach((event, index) => {
+          try {
+            calendar.createEvents([event]);
+          } catch (individualError) {
+            console.warn(`이벤트 ${index + 1} 생성 실패:`, individualError);
+          }
+        });
+      }
       
       showToast('success', `${events.length}개의 일정을 불러왔습니다.`);
     } catch (err) {
@@ -241,7 +243,7 @@ export default function MonthlyCalendar() {
     } finally {
       setLoading(false);
     }
-  }, [loading, getCacheKey, showToast, parseDate]);
+  }, [loading, getCacheKey, showToast, parseDate, getCurrentDate]);
 
   // ✅ 캐시 무효화
   const invalidateCache = useCallback((date?: Date) => {
@@ -253,7 +255,7 @@ export default function MonthlyCalendar() {
     }
   }, [getCacheKey]);
 
-  // ✅ 이벤트 핸들러들 (타입 안전성 개선)
+  // ✅ 공식 API 기반 이벤트 핸들러들
   const handleCreateEvent = useCallback(async (eventData: any) => {
     if (!eventData.title?.trim()) {
       showToast('error', '일정 제목을 입력해주세요.');
@@ -271,8 +273,8 @@ export default function MonthlyCalendar() {
         isAllday: true,
         location: location?.trim() || '',
         isReadOnly: false,
-        start: start.toDate(),
-        end: end.toDate(),
+        start: start instanceof Date ? start : new Date(start),
+        end: end instanceof Date ? end : new Date(end),
       });
 
       const newEvent: CalendarEvent = {
@@ -281,7 +283,15 @@ export default function MonthlyCalendar() {
         end: parseDate(res.data.end),
       };
 
-      calendarRef.current?.createEvents([newEvent]);
+      // 공식 API 사용 - createEvents 메서드는 배열을 받음
+      try {
+        calendarRef.current?.createEvents([newEvent]);
+      } catch (createError) {
+        console.warn('새 이벤트 UI 생성 실패:', createError);
+        // ✅ 대안: 전체 다시 로드
+        loadEvents();
+      }
+      
       invalidateCache(newEvent.start);
       showToast('success', '일정이 생성되었습니다.');
     } catch (err) {
@@ -289,15 +299,17 @@ export default function MonthlyCalendar() {
       const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
       showToast('error', `일정 저장에 실패했습니다: ${errorMessage}`);
     }
-  }, [invalidateCache, showToast, parseDate]);
+  }, [invalidateCache, showToast, parseDate, loadEvents]);
 
   const handleUpdateEvent = useCallback(async ({ event, changes }: any) => {
     try {
       const payload = {
         ...event,
         ...changes,
-        start: changes.start ? changes.start.toDate?.() : event.start.toDate(),
-        end: changes.end ? changes.end.toDate?.() : event.end.toDate(),
+        start: changes.start instanceof Date ? changes.start : 
+               (event.start instanceof Date ? event.start : new Date(event.start)),
+        end: changes.end instanceof Date ? changes.end : 
+             (event.end instanceof Date ? event.end : new Date(event.end)),
         location: changes.location ?? event.location ?? '',
         title: changes.title?.trim() || event.title || '(제목 없음)',
         body: changes.body?.trim() ?? event.body ?? '',
@@ -306,7 +318,16 @@ export default function MonthlyCalendar() {
       };
 
       await updateEvent(event.id, payload);
-      calendarRef.current?.updateEvent(event.id, event.calendarId, changes);
+      
+      // 공식 API 사용 - updateEvent는 세 개의 매개변수를 받음
+      try {
+        calendarRef.current?.updateEvent(event.id, event.calendarId, changes);
+      } catch (updateError) {
+        console.warn('이벤트 UI 업데이트 실패:', updateError);
+        // ✅ 대안: 전체 다시 로드
+        loadEvents();
+      }
+      
       invalidateCache(payload.start);
       showToast('success', '일정이 수정되었습니다.');
     } catch (err) {
@@ -314,7 +335,7 @@ export default function MonthlyCalendar() {
       const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
       showToast('error', `일정 수정에 실패했습니다: ${errorMessage}`);
     }
-  }, [invalidateCache, showToast]);
+  }, [invalidateCache, showToast, loadEvents]);
 
   const handleDeleteEvent = useCallback(async ({ id, calendarId }: any) => {
     const confirmDelete = window.confirm('정말 이 일정을 삭제하시겠습니까?');
@@ -322,142 +343,139 @@ export default function MonthlyCalendar() {
 
     try {
       await deleteEvent(id);
-      calendarRef.current?.deleteEvent(id, calendarId);
-      eventsCache.current.clear(); // 삭제 시 전체 캐시 클리어
+      
+      // 공식 API 사용 - deleteEvent는 두 개의 매개변수를 받음
+      try {
+        calendarRef.current?.deleteEvent(id, calendarId);
+      } catch (deleteError) {
+        console.warn('이벤트 UI 삭제 실패:', deleteError);
+        // ✅ 대안: 전체 다시 로드
+        loadEvents();
+      }
+      
+      eventsCache.current.clear();
       showToast('success', '일정이 삭제되었습니다.');
     } catch (err) {
       console.error('일정 삭제 실패:', err);
       const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
       showToast('error', `일정 삭제에 실패했습니다: ${errorMessage}`);
     }
-  }, [showToast]);
+  }, [showToast, loadEvents]);
 
-  // ✅ 캘린더 초기화 (메모리 누수 방지 개선)
+  // ✅ 날짜 표시 업데이트 (한 달 뷰)
+  const updateCurrentDateDisplay = useCallback(() => {
+    try {
+      const currentDate = getCurrentDate();
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      
+      setCurrentDate(`${year}년 ${month}월`);
+    } catch (error) {
+      console.error('날짜 표시 업데이트 오류:', error);
+      setCurrentDate(new Date().toLocaleDateString('ko-KR'));
+    }
+  }, [getCurrentDate]);
+
+  // ✅ 공식 문서 기반 캘린더 초기화
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    const calendar = new Calendar(containerRef.current, calendarOptions);
-
-    // 이벤트 리스너 등록
-    const createHandler = (eventData: any) => handleCreateEvent(eventData);
-    const updateHandler = (eventData: any) => handleUpdateEvent(eventData);
-    const deleteHandler = (eventData: any) => handleDeleteEvent(eventData);
-
-    calendar.on('beforeCreateEvent', createHandler);
-    calendar.on('beforeUpdateEvent', updateHandler);
-    calendar.on('beforeDeleteEvent', deleteHandler);
-
-    calendarRef.current = calendar;
-    
-    setCurrentDate(
-      calendar.getDate().toDate().toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: 'long',
-      })
-    );
-
-    // 초기 데이터 로드
-    const loadTimer = setTimeout(() => {
-      loadEvents();
-    }, 100);
-
-    // ✅ CSS 추가: "+more" 버튼 숨기기 (메모리 누수 방지)
-    const style = document.createElement('style');
-    style.textContent = `
-      .toastui-calendar-month-more-btn {
-        display: none !important;
-      }
-      .toastui-calendar-month-event-block {
-        overflow: visible !important;
-        max-height: none !important;
-      }
-      .toastui-calendar-month-events {
-        overflow: visible !important;
-        max-height: none !important;
-      }
-      .toastui-calendar-month-date {
-        height: auto !important;
-        min-height: 120px !important;
-      }
-    `;
-    document.head.appendChild(style);
-    styleElementRef.current = style;
-
-    return () => {
-      clearTimeout(loadTimer);
-      
-      // 이벤트 리스너 정리
-      if (calendarRef.current) {
-        calendarRef.current.off('beforeCreateEvent', createHandler);
-        calendarRef.current.off('beforeUpdateEvent', updateHandler);
-        calendarRef.current.off('beforeDeleteEvent', deleteHandler);
-        calendarRef.current.destroy();
-        calendarRef.current = null;
-      }
-      
-      // 스타일 정리
-      if (styleElementRef.current?.parentNode) {
-        styleElementRef.current.parentNode.removeChild(styleElementRef.current);
-        styleElementRef.current = null;
-      }
-      
-      // 디바운스 타이머 정리
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-        debounceTimer.current = null;
-      }
-    };
-  }, []); // 의존성 배열을 비워서 한 번만 실행되도록 수정
-
-  // ✅ 스마트 디바운싱이 적용된 월 이동
-  const moveCalendar = useCallback((type: 'prev' | 'next' | 'today') => {
-    const calendar = calendarRef.current;
-    if (!calendar || loading) return;
+    if (!containerRef.current || isInitialized.current) return;
 
     try {
-      if (type === 'prev') calendar.prev();
-      else if (type === 'next') calendar.next();
-      else calendar.today();
+      // 공식 문서: DOM 요소를 직접 전달
+      const calendar = new Calendar(containerRef.current, calendarOptions);
 
-      const newDate = calendar.getDate().toDate().toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: 'long',
-      });
-      setCurrentDate(newDate);
+      // 공식 문서 기반 이벤트 리스너 등록
+      calendar.on('beforeCreateEvent', handleCreateEvent);
+      calendar.on('beforeUpdateEvent', handleUpdateEvent);
+      calendar.on('beforeDeleteEvent', handleDeleteEvent);
 
-      // 디바운싱 적용
+      calendarRef.current = calendar;
+      isInitialized.current = true;
+      
+      // 초기화 완료 후 데이터 로드
+      setTimeout(() => {
+        updateCurrentDateDisplay();
+        loadEvents();
+      }, 100);
+
+      return () => {
+        try {
+          if (calendarRef.current) {
+            // 공식 API: 이벤트 리스너 해제 후 인스턴스 파괴
+            calendarRef.current.off('beforeCreateEvent');
+            calendarRef.current.off('beforeUpdateEvent');
+            calendarRef.current.off('beforeDeleteEvent');
+            calendarRef.current.destroy();
+            calendarRef.current = null;
+          }
+          
+          if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
+            debounceTimer.current = null;
+          }
+          
+          isInitialized.current = false;
+        } catch (cleanupError) {
+          console.error('Cleanup 오류:', cleanupError);
+        }
+      };
+    } catch (error) {
+      console.error('캘린더 초기화 오류:', error);
+      showToast('error', '캘린더 초기화에 실패했습니다.');
+    }
+  }, []); // 의존성 배열 비움 - 한 번만 실행
+
+  // ✅ 공식 API 기반 월 이동 (상태 동기화 개선)
+  const moveCalendar = useCallback((type: 'prev' | 'next' | 'today') => {
+    const calendar = calendarRef.current;
+    if (!calendar || loading || !isInitialized.current) return;
+
+    try {
+      // 공식 API 메서드 사용
+      if (type === 'prev') {
+        calendar.prev();
+        const newDate = new Date(currentViewDate.current);
+        newDate.setMonth(newDate.getMonth() - 1);
+        currentViewDate.current = newDate;
+      } else if (type === 'next') {
+        calendar.next();
+        const newDate = new Date(currentViewDate.current);
+        newDate.setMonth(newDate.getMonth() + 1);
+        currentViewDate.current = newDate;
+      } else {
+        calendar.today();
+        currentViewDate.current = new Date();
+      }
+
+      // UI 업데이트를 즉시 실행
+      updateCurrentDateDisplay();
+
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
       
       debounceTimer.current = setTimeout(() => {
         loadEvents();
-      }, 150);
+      }, 150); // 응답성 개선을 위해 200ms → 150ms
     } catch (error) {
       console.error('캘린더 이동 실패:', error);
       showToast('error', '캘린더 이동에 실패했습니다.');
     }
-  }, [loading, loadEvents, showToast]);
-
-  // ✅ 버튼 스타일 메모이제이션
-  const buttonStyles = useMemo(() => ({
-    navigation: "px-6 py-3 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed",
-    today: "px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-  }), []);
+  }, [loading, updateCurrentDateDisplay, loadEvents, showToast]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
-      {/* ✅ 모던 토스트 알림 */}
+    <div className="h-screen bg-gray-50 flex flex-col">
+      {/* 토스트 알림 */}
       {toast.visible && (
-        <div className={`fixed top-8 right-8 z-50 px-6 py-4 rounded-2xl shadow-2xl transition-all duration-300 transform ${
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 transform ${
           toast.visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
         } ${
           toast.type === 'success' ? 'bg-green-500 text-white' :
           toast.type === 'error' ? 'bg-red-500 text-white' :
           'bg-blue-500 text-white'
         }`}>
-          <div className="flex items-center space-x-3">
-            <span className="text-xl">
+          <div className="flex items-center space-x-2 text-sm">
+            <span>
               {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
             </span>
             <span className="font-medium">{toast.message}</span>
@@ -465,110 +483,68 @@ export default function MonthlyCalendar() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
-        {/* 헤더 섹션 */}
-        <div className="bg-white rounded-3xl shadow-xl mb-6 p-1">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            {/* 제목 */}
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-white text-2xl">📅</span>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  휴가 및 일정 - {currentDate}
-                </h1>
-
-              </div>
-            </div>
-
-            {/* 네비게이션 버튼 */}
-            <div className="flex items-center space-x-3">
+      {/* 헤더 - 크기 축소 */}
+      <div className="bg-white border-b border-gray-200 px-6 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => moveCalendar('today')}
+              className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Today
+            </button>
+            
+            <div className="flex items-center space-x-2">
               <button 
                 onClick={() => moveCalendar('prev')}
                 disabled={loading}
-                className={buttonStyles.navigation}
-                aria-label="이전 달"
+                className="p-1 text-gray-600 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
               >
-                <span className="flex items-center space-x-2">
-                  <span>◀</span>
-                  <span>이전</span>
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => moveCalendar('today')}
-                disabled={loading}
-                className={buttonStyles.today}
-                aria-label="오늘"
-              >
-                {loading ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>로딩</span>
-                  </div>
-                ) : (
-                  '오늘'
-                )}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
               
               <button 
                 onClick={() => moveCalendar('next')}
                 disabled={loading}
-                className={buttonStyles.navigation}
-                aria-label="다음 달"
+                className="p-1 text-gray-600 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
               >
-                <span className="flex items-center space-x-2">
-                  <span>다음</span>
-                  <span>▶</span>
-                </span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
+            
+            <h1 className="text-lg font-semibold text-gray-900">
+              {currentDate}
+            </h1>
           </div>
-        </div>
 
-        {/* 캘린더 섹션 */}
-        <div className="bg-white rounded-3xl shadow-xl p-6">
+          {loading && (
+            <div className="flex items-center space-x-2 text-gray-500">
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+              <span className="text-sm">로딩중...</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 캘린더 영역 */}
+      <div className="flex-1 p-6">
+        <div className="h-full bg-white rounded-lg shadow-sm border border-gray-200">
           <div 
             ref={containerRef} 
-            className="rounded-2xl border border-gray-200 overflow-hidden"
-            style={{ height: `${containerHeight}px` }}
+            className="h-full w-full"
+            style={{ 
+              height: 'calc(100vh - 120px)',  // ✅ 헤더 높이 줄어든 만큼 조정
+              minHeight: '800px'              // ✅ 4개 이벤트를 위한 충분한 높이
+            }}
           />
-          
-          {/* ✅ 캘린더 범례 */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-6 pt-6 border-t border-gray-200">
-            <span className="text-sm font-semibold text-gray-600">캘린더 유형:</span>
-            {calendarOptions.calendars.map((cal) => (
-              <div key={cal.id} className="flex items-center space-x-2">
-                <div 
-                  className="w-4 h-4 rounded border-2" 
-                  style={{ 
-                    backgroundColor: cal.backgroundColor, 
-                    borderColor: cal.borderColor 
-                  }}
-                ></div>
-                <span className="text-sm text-gray-700">{cal.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 하단 도움말 */}
-        <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
-          <div className="flex items-start space-x-3">
-            <span className="text-blue-500 text-xl">💡</span>
-            <div>
-              <h3 className="font-semibold text-blue-800 mb-2">사용 방법</h3>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• <strong>일정 추가:</strong> 원하는 날짜를 클릭하여 새 일정을 생성하세요</li>
-                <li>• <strong>일정 수정:</strong> 기존 일정을 클릭하여 내용을 수정할 수 있습니다</li>
-                <li>• <strong>일정 이동:</strong> 일정을 드래그하여 다른 날짜로 이동하세요</li>
-                <li>• <strong>일정 삭제:</strong> 일정 상세보기에서 삭제 버튼을 클릭하세요</li>
-              </ul>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 }
+
+export default MonthlyCalendar;

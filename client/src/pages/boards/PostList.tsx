@@ -13,9 +13,9 @@ type Post = {
 };
 
 type BoardInfo = {
-  title: string;
+  id: string;
+  name: string;
   description: string;
-  icon: React.ReactNode;
 };
 
 const PostList = () => {
@@ -24,72 +24,10 @@ const PostList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [boardInfo, setBoardInfo] = useState<BoardInfo | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
-
-  // 게시판 정보를 메모이제이션
-  const getBoardInfo = useMemo((): Record<string, BoardInfo> => ({
-    notice: {
-      title: '공지사항',
-      description: '중요한 회사 소식과 공지사항을 확인하세요',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-        </svg>
-      )
-    },
-    onboarding: {
-      title: '온보딩',
-      description: '신입사원을 위한 가이드와 자료들',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      )
-    },
-    shared: {
-      title: '공유 자료',
-      description: '팀원들과 공유하는 유용한 자료들',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-        </svg>
-      )
-    },
-    internal: {
-      title: '내부 문서',
-      description: '기밀 자료와 내부 문서들',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      )
-    },
-    free: {
-      title: '자유게시판',
-      description: '자유롭게 소통하는 공간',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-        </svg>
-      )
-    }
-  }), []);
-
-  // 현재 게시판 정보 가져오기
-  const currentBoardInfo = useMemo(() => {
-    if (!boardType) return null;
-    return getBoardInfo[boardType] || {
-      title: boardType.toUpperCase(),
-      description: '게시글 목록',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    };
-  }, [boardType, getBoardInfo]);
 
   // 검색 필터링을 메모이제이션
   const filteredPosts = useMemo(() => {
@@ -152,6 +90,23 @@ const PostList = () => {
     setSearchTerm('');
   }, []);
 
+  // ✅ 기본값 설정 함수
+  const setDefaultBoardInfo = useCallback((boardId: string) => {
+    const defaultTitles: Record<string, string> = {
+      notice: '공지사항',
+      onboarding: '온보딩',
+      shared: '공유 자료',
+      internal: '내부 문서',
+      free: '자유게시판'
+    };
+    
+    setBoardInfo({
+      id: boardId,
+      name: defaultTitles[boardId] || boardId.charAt(0).toUpperCase() + boardId.slice(1),
+      description: '게시글 목록을 확인하세요'
+    });
+  }, []);
+
   // 데이터 로딩
   useEffect(() => {
     let isMounted = true;
@@ -163,19 +118,42 @@ const PostList = () => {
         setLoading(true);
         setError(null);
 
-        // 게시판 접근 권한 확인
-        const accessRes = await fetchBoardAccess(boardType);
-        const allowedRoles = accessRes.data.roles;
+        console.log(`🔍 PostList 권한 체크 시작: boardType=${boardType}, role=${role}`);
 
-        if (!allowedRoles.includes(role)) {
+        // 1. 게시판 접근 권한 확인
+        const accessRes = await fetchBoardAccess(boardType);
+        console.log('🔍 PostList API 응답:', accessRes.data);
+        
+        const allowedRoles = accessRes.data.roles;
+        const hasAccess = allowedRoles.some((roleObj: any) => roleObj.roleId === role);
+        
+        console.log(`🔍 권한 체크 결과: ${hasAccess ? '허용' : '거부'}`);
+
+        if (!hasAccess) {
+          console.warn(`❌ PostList에서 권한 없음 - unauthorized로 이동`);
           navigate('/unauthorized');
           return;
         }
 
-        // 게시글 목록 가져오기
+        // ✅ 2. 게시판 정보 설정 (권한 API 응답에서 가져오기)
+        if (accessRes.data.boardName) {
+          setBoardInfo({
+            id: boardType,
+            name: accessRes.data.boardName,
+            description: accessRes.data.boardDescription || '게시글 목록을 확인하세요'
+          });
+          console.log('✅ 게시판 정보 설정:', accessRes.data.boardName);
+        } else {
+          // 응답에 게시판 정보가 없으면 기본값 사용
+          console.log('⚠️ API 응답에 게시판 정보 없음, 기본값 사용');
+          setDefaultBoardInfo(boardType);
+        }
+
+        // 3. 게시글 목록 가져오기
         const postList = await fetchPostsByType(boardType);
         if (isMounted) {
           setPosts(postList);
+          console.log(`✅ 게시글 ${postList.length}개 로드 완료`);
         }
       } catch (err: any) {
         console.error('게시글 불러오기 실패:', err);
@@ -192,7 +170,7 @@ const PostList = () => {
     return () => {
       isMounted = false;
     };
-  }, [boardType, role, navigate]);
+  }, [boardType, role, navigate, setDefaultBoardInfo]);
 
   // 스켈레톤 로더 컴포넌트
   const SkeletonLoader = () => (
@@ -238,24 +216,28 @@ const PostList = () => {
     );
   }
 
-  if (!currentBoardInfo) return null;
-
   return (
     <div className="min-h-full bg-gradient-to-br from-gray-50/50 to-white">
       <div className="max-w-6xl mx-auto p-6">
-        {/* 헤더 섹션 */}
+        {/* ✅ 헤더 섹션 - 관리자가 설정한 정보 표시 */}
         <div className="mb-8">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                  {currentBoardInfo.icon}
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
                 <div>
+                  {/* ✅ 관리자가 설정한 게시판 이름 */}
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-1">
-                    {currentBoardInfo.title}
+                    {boardInfo?.name || '게시판'}
                   </h1>
-                  <p className="text-gray-600">{currentBoardInfo.description}</p>
+                  {/* ✅ 관리자가 설정한 게시판 설명 */}
+                  <p className="text-gray-600">
+                    {boardInfo?.description || '게시글 목록을 확인하세요'}
+                  </p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-sm font-medium text-gray-500">
                       총 {posts.length}개

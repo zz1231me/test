@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import multer from 'multer';
 import asyncHandler from 'express-async-handler';
 import {
@@ -9,10 +9,11 @@ import {
   deletePost,
 } from '../controllers/post.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { checkBoardAccess } from '../middlewares/boardAccess.middleware';
 import { AuthRequest } from '../types/auth-request';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto'; // ✅ 랜덤 파일명 생성을 위한 import
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ const storage = multer.diskStorage({
   },
   filename: function (_req, file, cb) {
     const ext = path.extname(file.originalname);
-    const randomName = crypto.randomBytes(5).toString('hex'); // ✅ 10자리 영문숫자 랜덤
+    const randomName = crypto.randomBytes(5).toString('hex');
     cb(null, `${randomName}${ext}`);
   },
 });
@@ -38,43 +39,54 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 /**
- * ✅ 공개 라우트
+ * ✅ 게시글 목록 조회 (게시판별) - 읽기 권한 필요
  */
-
-// 게시글 목록 조회 (게시판별)
 router.get(
   '/:boardType',
+  authenticate as RequestHandler,                       // ✅ JWT 인증
+  checkBoardAccess('read') as RequestHandler,          // ✅ 게시판 읽기 권한 체크
   asyncHandler((req, res) => getPosts(req as AuthRequest, res))
 );
 
-// 게시글 단건 조회
+/**
+ * ✅ 게시글 단건 조회 - 읽기 권한 필요
+ */
 router.get(
-  '/detail/:id',
+  '/:boardType/:id',
+  authenticate as RequestHandler,                       // ✅ JWT 인증
+  checkBoardAccess('read') as RequestHandler,          // ✅ 게시판 읽기 권한 체크
   asyncHandler((req, res) => getPostById(req as AuthRequest, res))
 );
 
 /**
- * ✅ 인증이 필요한 라우트
+ * ✅ 게시글 생성 - 쓰기 권한 필요
  */
-router.use(authenticate);
-
-// 게시글 생성
 router.post(
   '/:boardType',
+  authenticate as RequestHandler,                       // ✅ JWT 인증
+  checkBoardAccess('write') as RequestHandler,         // ✅ 게시판 쓰기 권한 체크
   upload.single('file'),
   asyncHandler((req, res) => createPost(req as AuthRequest, res))
 );
 
-// 게시글 수정
+/**
+ * ✅ 게시글 수정 - 쓰기 권한 필요
+ */
 router.put(
   '/:boardType/:id',
+  authenticate as RequestHandler,                       // ✅ JWT 인증
+  checkBoardAccess('write') as RequestHandler,         // ✅ 게시판 쓰기 권한 체크
   upload.single('file'),
   asyncHandler((req, res) => updatePost(req as AuthRequest, res))
 );
 
-// 게시글 삭제
+/**
+ * ✅ 게시글 삭제 - 삭제 권한 필요
+ */
 router.delete(
-  '/:id',
+  '/:boardType/:id',
+  authenticate as RequestHandler,                       // ✅ JWT 인증
+  checkBoardAccess('delete') as RequestHandler,        // ✅ 게시판 삭제 권한 체크
   asyncHandler((req, res) => deletePost(req as AuthRequest, res))
 );
 

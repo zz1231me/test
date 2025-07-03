@@ -1,25 +1,40 @@
 // server/src/models/BoardAccess.ts
-
 import { DataTypes, Model } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
-// ✅ 타입을 명시적으로 지정해주기
-class BoardAccess extends Model {
-  public boardType!: string;
-  public role!: 'admin' | 'group1' | 'group2';
+export class BoardAccess extends Model {
+  public boardId!: string;
+  public roleId!: string;
+  public canRead!: boolean;
+  public canWrite!: boolean;
+  public canDelete!: boolean;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
 
 BoardAccess.init(
   {
-    boardType: {
-      type: DataTypes.STRING,
+    boardId: {
+      type: DataTypes.STRING(50),
       primaryKey: true,
+      allowNull: false,
     },
-    role: {
-      type: DataTypes.STRING,
+    roleId: {
+      type: DataTypes.STRING(50),
       primaryKey: true,
+      allowNull: false,
+    },
+    canRead: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    canWrite: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    canDelete: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {
@@ -29,5 +44,7 @@ BoardAccess.init(
     timestamps: true,
   }
 );
+
+// 🚨 관계 정의 제거 - models/index.ts에서만!
 
 export default BoardAccess;

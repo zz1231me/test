@@ -40,10 +40,10 @@ const PostEditor = ({ mode }: Props) => {
   useEffect(() => {
     let isMounted = true;
 
-    if (mode === 'edit' && id) {
+    if (mode === 'edit' && id && boardType) {
       const fetchData = async () => {
         try {
-          const post = await fetchPostById(id);
+          const post = await fetchPostById(boardType, id);
           if (isMounted) {
             setTitle(post.title);
             editorRef.current?.getInstance()?.setMarkdown(post.content || '');
@@ -62,7 +62,7 @@ const PostEditor = ({ mode }: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [mode, id]);
+  }, [mode, id, boardType]);
 
   // 폼 제출 처리
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,7 +81,8 @@ const PostEditor = ({ mode }: Props) => {
       const payload = { title, content, boardType, file };
 
       if (mode === 'edit' && id) {
-        await updatePost(id, payload);
+        // updatePost API 호출 시 boardType 전달
+        await updatePost(boardType, id, { title, content, file });
         alert('수정 완료');
         navigate(`/dashboard/posts/${boardType}/${id}`);
       } else if (mode === 'create') {
@@ -108,6 +109,9 @@ const PostEditor = ({ mode }: Props) => {
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/uploads/images`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}` // 인증 토큰 추가
+        },
         body: formData,
       });
 
@@ -142,165 +146,165 @@ const PostEditor = ({ mode }: Props) => {
   };
 
   const isEditMode = mode === 'edit';
-  const pageTitle = isEditMode ? '게시글 수정' : '새 게시글 작성';
   const submitButtonText = isEditMode ? '✨ 수정하기' : '🚀 작성하기';
 
   return (
     <div className="min-h-full bg-gradient-to-br from-gray-50/50 to-white">
       <div className="max-w-6xl mx-auto p-6">
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm p-8 space-y-8">
-          {/* 페이지 제목 */}
-          <div className="text-center">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {pageTitle}
-            </h1>
-          </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* 제목 입력 섹션 */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md">
-                  <span className="text-white text-lg">✏️</span>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* 제목 입력 섹션 */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
+              <div className="space-y-4">
+                {/* 제목 라벨 */}
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                    <span className="text-white text-lg">✏️</span>
+                  </div>
+                  <label htmlFor="title" className="text-xl font-bold text-gray-800">
+                    제목
+                  </label>
                 </div>
-                <label htmlFor="title" className="text-xl font-bold text-gray-800 whitespace-nowrap">
-                  제목
-                </label>
-              </div>
-              <div className="flex-1">
+                
+                {/* 제목 입력 필드 */}
                 <div className="relative">
                   <input
                     id="title"
                     type="text"
-                    className="w-full bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 rounded-xl shadow-sm text-xl font-medium text-gray-800 placeholder-gray-500 transition-all duration-300 hover:shadow-md focus:shadow-lg hover:from-purple-50 hover:to-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200"
+                    className="block w-full bg-gradient-to-r from-blue-50 to-purple-50 px-4 py-4 pr-16 rounded-xl shadow-sm text-lg font-medium text-gray-800 placeholder-gray-500 transition-all duration-300 hover:shadow-md focus:shadow-lg hover:from-purple-50 hover:to-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200 box-border"
                     value={title}
                     onChange={handleTitleChange}
                     placeholder="멋진 제목을 입력해주세요..."
                     required
                   />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 font-medium pointer-events-none">
                     {title.length}/{MAX_TITLE_LENGTH}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 에디터 섹션 */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center shadow-md">
-                <span className="text-white text-lg">📝</span>
-              </div>
-              <h3 className="text-xl font-bold text-gray-800">내용 작성</h3>
-            </div>
-            <div className="rounded-xl overflow-hidden shadow-inner border border-gray-200">
-              <Editor
-                ref={editorRef}
-                previewStyle="vertical"
-                height="500px"
-                initialEditType="wysiwyg"
-                useCommandShortcut={true}
-                language="ko-KR"
-                hooks={{ addImageBlobHook: handleImageUpload }}
-                toolbarItems={[
-                  ['heading', 'bold', 'italic', 'strike'],
-                  ['hr', 'quote'],
-                  ['ul', 'ol', 'task'],
-                  ['table', 'link', 'image', 'code', 'codeblock'],
-                ]}
-              />
-            </div>
-          </div>
-
-          {/* 첨부파일 섹션 */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-md">
-                <span className="text-white text-lg">📎</span>
-              </div>
-              <h3 className="text-xl font-bold text-gray-800">첨부파일</h3>
-            </div>
-            
-            <div className="space-y-4">
-              {/* 기존 첨부파일 표시 (수정 모드) */}
-              {isEditMode && attachmentUrl && (
-                <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 py-3 shadow-sm">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-white text-sm">📄</span>
-                    </div>
-                    <a
-                      href={attachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-green-700 hover:text-green-800 hover:underline break-all transition-colors"
-                    >
-                      {attachmentUrl.split('/').pop()}
-                    </a>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAttachmentDelete}
-                    className="w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white hover:shadow-md transition-all text-xs font-bold"
-                    title="첨부파일 삭제"
-                  >
-                    ✕
-                  </button>
+            {/* 에디터 섹션 */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center shadow-md">
+                  <span className="text-white text-lg">📝</span>
                 </div>
-              )}
-
-              {/* 파일 업로드 영역 */}
-              <div className="relative">
-                <input
-                  type="file"
-                  id="file-upload"
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                <h3 className="text-xl font-bold text-gray-800">내용 작성</h3>
+              </div>
+              <div className="rounded-xl overflow-hidden shadow-inner border border-gray-200">
+                <Editor
+                  ref={editorRef}
+                  previewStyle="vertical"
+                  height="600px"
+                  initialEditType="markdown"
+                  useCommandShortcut={true}
+                  language="ko-KR"
+                  hooks={{ addImageBlobHook: handleImageUpload }}
+                  plugins={[
+                    [codeSyntaxHighlight, { highlighter: Prism }],
+                    colorSyntax,
+                    tableMergedCell,
+                    chart,
+                    uml
+                  ]}
+                  toolbarItems={[
+                    ['heading', 'bold', 'italic', 'strike'],
+                    ['hr', 'quote'],
+                    ['ul', 'ol', 'task'],
+                    ['table', 'link', 'image', 'code', 'codeblock'],
+                  ]}
                 />
-                <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl px-6 py-8 text-center cursor-pointer hover:from-blue-50 hover:to-purple-50 transition-all duration-300 group">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 group-hover:from-purple-500 group-hover:to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 shadow-lg">
-                    <span className="text-white text-2xl">📁</span>
+              </div>
+            </div>
+
+            {/* 첨부파일 섹션 */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-md">
+                  <span className="text-white text-lg">📎</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">첨부파일</h3>
+              </div>
+              
+              <div className="space-y-4">
+                {/* 기존 첨부파일 표시 (수정 모드) */}
+                {isEditMode && attachmentUrl && (
+                  <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 py-3 shadow-sm">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                        <span className="text-white text-sm">📄</span>
+                      </div>
+                      <a
+                        href={attachmentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-green-700 hover:text-green-800 hover:underline break-all transition-colors"
+                      >
+                        {attachmentUrl.split('/').pop()}
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAttachmentDelete}
+                      className="w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white hover:shadow-md transition-all text-xs font-bold"
+                      title="첨부파일 삭제"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <p className="text-lg font-semibold text-gray-700 group-hover:text-blue-700 transition-colors mb-2">
-                    {file 
-                      ? `선택된 파일: ${file.name}` 
-                      : attachmentUrl 
-                        ? '파일 변경하기' 
-                        : '파일 선택하기'
-                    }
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    클릭하거나 파일을 드래그해서 업로드하세요
-                  </p>
+                )}
+
+                {/* 파일 업로드 영역 */}
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="file-upload"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl px-6 py-8 text-center cursor-pointer hover:from-blue-50 hover:to-purple-50 transition-all duration-300 group">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 group-hover:from-purple-500 group-hover:to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 shadow-lg">
+                      <span className="text-white text-2xl">📁</span>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-700 group-hover:text-blue-700 transition-colors mb-2">
+                      {file 
+                        ? `선택된 파일: ${file.name}` 
+                        : attachmentUrl 
+                          ? '파일 변경하기' 
+                          : '파일 선택하기'
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      클릭하거나 파일을 드래그해서 업로드하세요
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 버튼 섹션 */}
-          <div className="flex justify-end gap-4 pt-6">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="px-10 py-4 rounded-2xl text-gray-700 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`px-10 py-4 rounded-2xl text-white font-bold shadow-xl transition-all duration-300 ${
-                loading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-purple-600 hover:to-blue-600 hover:shadow-2xl transform hover:-translate-y-1 hover:scale-105'
-              }`}
-            >
-              {loading ? '처리 중...' : submitButtonText}
-            </button>
-          </div>
-        </form>
+            {/* 버튼 섹션 */}
+            <div className="flex justify-end gap-4 pt-6">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="px-10 py-4 rounded-2xl text-gray-700 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className={`px-10 py-4 rounded-2xl text-white font-bold shadow-xl transition-all duration-300 ${
+                  loading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-purple-600 hover:to-blue-600 hover:shadow-2xl transform hover:-translate-y-1 hover:scale-105'
+                }`}
+              >
+                {loading ? '처리 중...' : submitButtonText}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

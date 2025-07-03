@@ -193,7 +193,7 @@ const PostDetail = () => {
       setLoading(true);
       setError(null);
 
-      const data = await fetchPostById(id);
+      const data = await fetchPostById(boardType, id);
       setPost({
         id: data.id,
         title: data.title,
@@ -240,7 +240,7 @@ const PostDetail = () => {
 
     try {
       setIsDeleting(true);
-      await deletePost(id!);
+      await deletePost(boardType!, id!);
       alert('게시글이 삭제되었습니다.');
       navigate(`/dashboard/posts/${boardType}`);
     } catch (err: any) {
@@ -457,7 +457,7 @@ const PostDetail = () => {
             </div>
           </header>
 
-          {/* 게시글 본문 */}
+          {/* 게시글 본문 - 마크다운 우선 렌더링 */}
           <section className="px-4 sm:px-8 py-8">
             <div className="prose prose-lg max-w-none">
               <style jsx global>{`
@@ -756,30 +756,17 @@ const PostDetail = () => {
                 }
               `}</style>
               
-              {post.contentType === 'html' ? (
-                // HTML 콘텐츠는 dangerouslySetInnerHTML로 렌더링
-                <div 
-                  className="prose prose-lg max-w-none"
-                  dangerouslySetInnerHTML={{ __html: post.content }}
-                  style={{
-                    lineHeight: '1.8',
-                    fontSize: '16px',
-                    color: '#374151'
-                  }}
-                />
-              ) : (
-                // 마크다운 콘텐츠는 Viewer로 렌더링
-                <Viewer
-                  initialValue={post.content}
-                  theme="light"
-                  height="auto"
-                  extendedAutolinks={true}
-                  linkAttributes={{
-                    target: '_blank',
-                    rel: 'noopener noreferrer'
-                  }}
-                />
-              )}
+              {/* ✅ 마크다운 우선 렌더링 - 항상 Toast UI Viewer 사용 */}
+              <Viewer
+                initialValue={post.content}
+                theme="light"
+                height="auto"
+                extendedAutolinks={true}
+                linkAttributes={{
+                  target: '_blank',
+                  rel: 'noopener noreferrer'
+                }}
+              />
             </div>
           </section>
 

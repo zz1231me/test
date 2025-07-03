@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import axios from '../../api/axios';
 
 type Comment = {
@@ -9,6 +10,10 @@ type Comment = {
   User?: {
     name: string;
   };
+  user?: {  // ✅ 실제 백엔드 응답 구조 추가
+    id: string;
+    name: string;
+  };
 };
 
 interface CommentSectionProps {
@@ -16,6 +21,7 @@ interface CommentSectionProps {
 }
 
 const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
+  const { boardType } = useParams<{ boardType: string }>(); // ✅ boardType 가져오기
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,11 +44,39 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
     return `${yy}.${mm}.${dd}(${hh}:${mi})`;
   };
 
+  // ✅ 사용자 이름에서 첫 글자 추출하는 함수
+  const getInitial = (name: string) => {
+    return name?.charAt(0) || '?';
+  };
+
+  // ✅ 사용자별 고유한 그라데이션 색상 생성 함수
+  const getGradientColors = (name: string) => {
+    const gradients = [
+      'from-emerald-500 to-teal-500',
+      'from-blue-500 to-cyan-500', 
+      'from-purple-500 to-pink-500',
+      'from-orange-500 to-red-500',
+      'from-green-500 to-lime-500',
+      'from-indigo-500 to-purple-500',
+      'from-pink-500 to-rose-500',
+      'from-yellow-500 to-orange-500',
+      'from-teal-500 to-green-500',
+      'from-cyan-500 to-blue-500'
+    ];
+    
+    // 이름을 기반으로 일관된 색상 선택
+    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return gradients[hash % gradients.length];
+  };
+
   const fetchComments = useCallback(async () => {
+    if (!boardType) return; // ✅ boardType 체크
+    
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`/comments/${postId}`);
+      // ✅ Option 2 방식: /comments/:boardType/:postId
+      const res = await axios.get(`/comments/${boardType}/${postId}`);
       setComments(res.data);
     } catch (err: any) {
       console.error('댓글 불러오기 실패:', err);
@@ -50,14 +84,15 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
     } finally {
       setLoading(false);
     }
-  }, [postId]);
+  }, [postId, boardType]); // ✅ boardType 의존성 추가
 
   const handleSubmit = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !boardType) return; // ✅ boardType 체크
 
     setSubmitting(true);
     try {
-      await axios.post(`/comments/${postId}`, { content: newComment });
+      // ✅ Option 2 방식: /comments/:boardType/:postId
+      await axios.post(`/comments/${boardType}/${postId}`, { content: newComment });
       setNewComment('');
       await fetchComments();
     } catch (err: any) {
@@ -69,10 +104,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   };
 
   const handleDelete = async (commentId: number) => {
-    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    if (!window.confirm('정말 삭제하시겠습니까?') || !boardType) return; // ✅ boardType 체크
 
     try {
-      await axios.delete(`/comments/${commentId}`);
+      // ✅ Option 2 방식: /comments/:boardType/:commentId
+      await axios.delete(`/comments/${boardType}/${commentId}`);
       await fetchComments();
     } catch (err: any) {
       console.error('댓글 삭제 실패:', err);
@@ -88,8 +124,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   };
 
   useEffect(() => {
-    if (postId) fetchComments();
-  }, [postId, fetchComments]);
+    if (postId && boardType) fetchComments(); // ✅ boardType 체크 추가
+  }, [postId, boardType, fetchComments]); // ✅ boardType 의존성 추가
 
   return (
     <div className="space-y-5">
@@ -112,29 +148,52 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
           <p className="text-gray-500 text-sm">아직 댓글이 없습니다</p>
         </div>
       ) : (
-        <div className="space-y-3 text-sm">
+        <div className="space-y-4 text-sm">
           {comments.map((comment) => {
             const isOwner = currentUserId === comment.UserId;
             const canDelete = isAdmin || isOwner;
+            // ✅ 실제 백엔드 응답에 맞게 수정 (user 소문자)
+            const userName = comment.user?.name || comment.User?.name || comment.UserId;
+            const userInitial = getInitial(userName);
+            const gradientColors = getGradientColors(userName);
+
+            // ✅ 디버깅을 위한 로그 (개발 시에만)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Comment user info:', {
+                user: comment.user,
+                User: comment.User,
+                UserId: comment.UserId,
+                userName: userName
+              });
+            }
 
             return (
-              <div key={comment.id} className="pb-3 border-b border-gray-100 last:border-b-0">
-                <div className="flex items-start gap-2">
-                  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center mt-1">
-                    <svg className="w-3.5 h-3.5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
+              <div key={comment.id} className="pb-4 border-b border-gray-100 last:border-b-0">
+                <div className="flex items-start gap-3">
+                  {/* ✅ PostDetail과 같은 스타일의 프로필 아바타 */}
+                  <div className={`w-8 h-8 bg-gradient-to-br ${gradientColors} rounded-lg flex items-center justify-center flex-shrink-0 mt-1`}>
+                    <span className="text-white text-sm font-bold">{userInitial}</span>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-gray-800 whitespace-pre-wrap break-words leading-snug mb-1">
+                  
+                  <div className="flex-1 min-w-0">
+                    {/* 사용자 이름과 시간 */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold text-gray-900 text-sm">{userName}</span>
+                      <span className="text-xs text-gray-500">•</span>
+                      <span className="text-xs text-gray-500">{formatDate(comment.createdAt)}</span>
+                    </div>
+                    
+                    {/* 댓글 내용 */}
+                    <p className="text-gray-800 whitespace-pre-wrap break-words leading-relaxed mb-2">
                       {comment.content}
                     </p>
-                    <div className="flex justify-between items-center text-xs text-gray-500">
-                      <span>{`${formatDate(comment.createdAt)} / ${comment.User?.name || comment.UserId}`}</span>
-                      {canDelete && (
+                    
+                    {/* 삭제 버튼 */}
+                    {canDelete && (
+                      <div className="flex justify-end">
                         <button
                           onClick={() => handleDelete(comment.id)}
-                          className="flex items-center gap-1 text-red-500 hover:text-red-700 px-2 py-0.5 border border-red-200 hover:border-red-300 rounded whitespace-nowrap transition"
+                          className="flex items-center gap-1 text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 hover:border-red-300 rounded-md text-xs font-medium transition-colors hover:bg-red-50"
                           title="댓글 삭제"
                           aria-label="댓글 삭제"
                         >
@@ -143,8 +202,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
                           </svg>
                           <span>삭제</span>
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
